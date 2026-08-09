@@ -39,12 +39,12 @@ export default function AdminLoginPage() {
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl space-y-6">
         <div className="text-center space-y-2">
-          <div className="relative w-12 h-12 shrink-0 flex items-center justify-center mx-auto">
+          <div className="relative w-16 h-16 shrink-0 flex items-center justify-center mx-auto mb-1">
             <Image
-              src="/logo.png?v=2"
+              src="/logo-icon-transparent.png"
               alt="Imani's Collection Logo"
-              width={48}
-              height={48}
+              width={64}
+              height={64}
               className="object-contain"
               unoptimized
             />
