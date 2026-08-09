@@ -1,14 +1,44 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { usePathname } from 'next/navigation';
-import { LayoutDashboard, ShoppingBag, ShoppingCart, FolderTree, Settings, Tag, LogOut, Store, Sparkles } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { LayoutDashboard, ShoppingBag, ShoppingCart, FolderTree, Settings, Tag, LogOut, Store, Sparkles, Lock } from 'lucide-react';
 import PageLoader from '@/components/ui/PageLoader';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (pathname === '/admin/login') {
+      setIsAuthenticated(true);
+      return;
+    }
+
+    const hasCookie = typeof document !== 'undefined' && document.cookie.includes('imanis_admin_session=authenticated');
+    const hasLocalStorage = typeof window !== 'undefined' && localStorage.getItem('imanis_admin_session') === 'authenticated';
+
+    if (hasCookie || hasLocalStorage) {
+      setIsAuthenticated(true);
+    } else {
+      setIsAuthenticated(false);
+      router.push('/admin/login');
+    }
+  }, [pathname, router]);
+
+  const handleLogout = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (typeof document !== 'undefined') {
+      document.cookie = 'imanis_admin_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    }
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('imanis_admin_session');
+    }
+    router.push('/admin/login');
+  };
 
   // Hide admin sidebar navigation completely on login page, but render PageLoader
   if (pathname === '/admin/login') {
@@ -17,6 +47,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <PageLoader />
         {children}
       </>
+    );
+  }
+
+  // Render lock loading screen while verifying session
+  if (isAuthenticated === false || isAuthenticated === null) {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-4 space-y-4">
+        <PageLoader />
+        <div className="w-12 h-12 rounded-2xl bg-[#a63b7e]/20 border border-[#a63b7e] flex items-center justify-center animate-bounce">
+          <Lock className="w-6 h-6 text-[#a63b7e]" />
+        </div>
+        <p className="text-xs font-bold text-gray-400">Verifying Admin Authentication Lock...</p>
+      </div>
     );
   }
 
@@ -85,12 +128,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           >
             <Store className="w-4 h-4 text-green-500" /> View Live Storefront
           </Link>
-          <Link
-            href="/admin/login"
-            className="flex items-center gap-2 text-xs text-red-400 hover:text-red-300 px-3 py-2 rounded-xl hover:bg-gray-800 transition font-medium"
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-2 text-xs text-red-400 hover:text-red-300 px-3 py-2 rounded-xl hover:bg-gray-800 transition font-medium text-left"
           >
             <LogOut className="w-4 h-4" /> Logout Session
-          </Link>
+          </button>
         </div>
       </aside>
 

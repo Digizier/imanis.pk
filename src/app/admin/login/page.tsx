@@ -18,14 +18,19 @@ export default function AdminLoginPage() {
     setError('');
     setLoading(true);
 
-    if (email === 'admin@imanis.pk' && password === 'csKj!jtL*BC&8rA') {
-      // Set session cookie
-      document.cookie = 'imanis_admin_session=authenticated; path=/';
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (cleanEmail === 'admin@imanis.pk' && password === 'csKj!jtL*BC&8rA') {
+      // Set session cookie & localStorage for persistent authentication lock
+      document.cookie = 'imanis_admin_session=authenticated; path=/; max-age=2592000; SameSite=Lax';
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('imanis_admin_session', 'authenticated');
+      }
       setTimeout(() => {
         router.push('/admin');
-      }, 500);
+      }, 300);
     } else {
-      setError('Invalid admin credentials. Please check your email and password.');
+      setError('Invalid admin credentials. Please check your username and password.');
       setLoading(false);
     }
   };
