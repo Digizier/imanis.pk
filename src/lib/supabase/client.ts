@@ -1,7 +1,10 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const DEFAULT_URL = 'https://qrqmibxwibkszosikxbc.supabase.co';
+const DEFAULT_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFycW1pYnh3aWJrc3pvc2lreGJjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyNTk0OTEsImV4cCI6MjEwMTgzNTQ5MX0.pXx-VXrjMisfbS7FWBjlyD_v4MjhpHNegniDAuFwy_U';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || DEFAULT_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || DEFAULT_ANON_KEY;
 
 // Singleton Supabase Client to reuse connection pool and avoid memory leaks
 let supabaseInstance: SupabaseClient | null = null;
