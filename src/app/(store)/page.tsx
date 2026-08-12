@@ -42,6 +42,7 @@ export default async function HomePage() {
         .select('id, name, slug, main_image, regular_price, sale_price, compare_at_price, is_crazy_deal, is_new_arrival, status')
         .in('category_id', targetCatIds)
         .eq('status', 'active')
+        .order('created_at', { ascending: false })
         .limit(4);
 
       return {
@@ -51,20 +52,22 @@ export default async function HomePage() {
     })
   );
 
-  // Fetch exactly 4 Crazy Deals products for clean 1-row layout
+  // Fetch exactly 4 Crazy Deals products for clean 1-row layout (NEWEST FIRST)
   const { data: crazyDeals } = await supabase
     .from('products')
     .select('id, name, slug, main_image, regular_price, sale_price, compare_at_price, is_crazy_deal, status')
     .eq('is_crazy_deal', true)
     .eq('status', 'active')
+    .order('created_at', { ascending: false })
     .limit(4);
 
-  // Fetch exactly 4 New Arrivals products for clean 1-row layout
+  // Fetch exactly 4 New Arrivals products for clean 1-row layout (NEWEST FIRST)
   const { data: newArrivals } = await supabase
     .from('products')
     .select('id, name, slug, main_image, regular_price, sale_price, compare_at_price, is_new_arrival, status')
     .eq('is_new_arrival', true)
     .eq('status', 'active')
+    .order('created_at', { ascending: false })
     .limit(4);
 
   const { data: reviews } = await supabase
