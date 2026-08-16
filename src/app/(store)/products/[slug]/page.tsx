@@ -36,14 +36,46 @@ export default async function ProductPage({ params }: ProductPageProps) {
     notFound();
   }
 
-  // Fetch category info separately if present
+  // Fetch category info and target category hierarchy (parent + child sub-categories)
+  const targetCategoryIds: string[] = [];
   if (product.category_id) {
     const { data: category } = await supabase
       .from('categories')
-      .select('id, name, slug')
+      .select('id, name, slug, parent_id')
       .eq('id', product.category_id)
       .single();
-    if (category) product.category = category as any;
+
+    if (category) {
+      product.category = category as any;
+      targetCategoryIds.push(category.id);
+
+      if (category.parent_id) {
+        // Sub-category: Include parent category and sibling sub-categories
+        targetCategoryIds.push(category.parent_id);
+        const { data: siblingCategories } = await supabase
+          .from('categories')
+          .select('id')
+          .eq('parent_id', category.parent_id)
+          .eq('is_active', true);
+        if (siblingCategories) {
+          siblingCategories.forEach((s) => {
+            if (!targetCategoryIds.includes(s.id)) targetCategoryIds.push(s.id);
+          });
+        }
+      } else {
+        // Parent category: Include all child sub-categories
+        const { data: childCategories } = await supabase
+          .from('categories')
+          .select('id')
+          .eq('parent_id', category.id)
+          .eq('is_active', true);
+        if (childCategories) {
+          childCategories.forEach((c) => {
+            if (!targetCategoryIds.includes(c.id)) targetCategoryIds.push(c.id);
+          });
+        }
+      }
+    }
   }
 
   // Fetch product variants separately
@@ -55,18 +87,49 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
   product.variants = (variants as any) || [];
 
-  // Fetch related products (lightweight selection)
-  const { data: relatedProducts } = await supabase
-    .from('products')
-    .select('id, name, slug, main_image, regular_price, sale_price, compare_at_price, is_crazy_deal, is_new_arrival')
-    .eq('status', 'active')
-    .neq('id', product.id)
-    .limit(4);
+  // Fetch dynamic, category-relevant related products (NEWEST FIRST)
+  let relatedProducts: any[] = [];
+
+  if (targetCategoryIds.length > 0) {
+    const { data: catProducts } = await supabase
+      .from('products')
+      .select('id, name, slug, main_image, regular_price, sale_price, compare_at_price, is_crazy_deal, is_new_arrival')
+      .in('category_id', targetCategoryIds)
+      .eq('status', 'active')
+      .neq('id', product.id)
+      .order('created_at', { ascending: false })
+      .limit(4);
+
+    if (catProducts && catProducts.length > 0) {
+      relatedProducts = [...catProducts];
+    }
+  }
+
+  // Fallback: If fewer than 4 products in same category, fill remaining with newest active products
+  if (relatedProducts.length < 4) {
+    const { data: fallbackProducts } = await supabase
+      .from('products')
+      .select('id, name, slug, main_image, regular_price, sale_price, compare_at_price, is_crazy_deal, is_new_arrival')
+      .eq('status', 'active')
+      .neq('id', product.id)
+      .order('created_at', { ascending: false })
+      .limit(8);
+
+    if (fallbackProducts) {
+      const existingIds = new Set(relatedProducts.map((p) => p.id));
+      for (const item of fallbackProducts) {
+        if (!existingIds.has(item.id) && relatedProducts.length < 4) {
+          relatedProducts.push(item);
+          existingIds.add(item.id);
+        }
+      }
+    }
+  }
 
   return (
     <ProductDetailClient
       product={product}
-      relatedProducts={(relatedProducts as any) || []}
+      relatedProducts={relatedProducts}
     />
   );
 }
