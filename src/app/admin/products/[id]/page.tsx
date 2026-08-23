@@ -19,10 +19,10 @@ interface CustomVariant {
 }
 
 interface SizeMeasurementRow {
-  size: string;
-  chest: string;
-  length: string;
-  shoulder: string;
+  col0: string; // Size
+  col1: string; // Measurement 1 (e.g. Chest)
+  col2: string; // Measurement 2 (e.g. Length)
+  col3: string; // Measurement 3 (e.g. Shoulder)
 }
 
 export default function EditProductPage() {
@@ -56,6 +56,13 @@ export default function EditProductPage() {
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [variants, setVariants] = useState<CustomVariant[]>([]);
+  const [enableSizeGuide, setEnableSizeGuide] = useState<boolean>(true);
+  const [sizeGuideHeaders, setSizeGuideHeaders] = useState<[string, string, string, string]>([
+    'Size',
+    'Chest',
+    'Length',
+    'Shoulder',
+  ]);
   const [sizeMeasurements, setSizeMeasurements] = useState<SizeMeasurementRow[]>([]);
 
   useEffect(() => {
@@ -99,27 +106,51 @@ export default function EditProductPage() {
       setMainImage(prod.main_image || '');
       setGalleryImages(prod.gallery_images || []);
 
-      // Parse Size Guide
+      // Parse Size Guide (Structured JSON or Legacy String)
       if (prod.size_guide) {
-        const parsedRows: SizeMeasurementRow[] = [];
-        const lines = prod.size_guide.split('\n');
-        lines.forEach((line: string) => {
-          const parts = line.split(':');
-          if (parts.length >= 2) {
-            const size = parts[0].trim();
-            const details = parts[1];
-            const chestMatch = details.match(/Chest\s*([^,]+)/i);
-            const lengthMatch = details.match(/Length\s*([^,]+)/i);
-            const shoulderMatch = details.match(/Shoulder\s*([^,]+)/i);
-            parsedRows.push({
-              size,
-              chest: chestMatch ? chestMatch[1].trim() : '38"',
-              length: lengthMatch ? lengthMatch[1].trim() : '28"',
-              shoulder: shoulderMatch ? shoulderMatch[1].trim() : '18"',
-            });
+        try {
+          const parsed = JSON.parse(prod.size_guide);
+          if (parsed && typeof parsed === 'object') {
+            setEnableSizeGuide(parsed.enabled !== false);
+            if (Array.isArray(parsed.headers) && parsed.headers.length >= 4) {
+              setSizeGuideHeaders([parsed.headers[0], parsed.headers[1], parsed.headers[2], parsed.headers[3]]);
+            }
+            if (Array.isArray(parsed.rows)) {
+              setSizeMeasurements(parsed.rows);
+            }
           }
-        });
-        if (parsedRows.length > 0) setSizeMeasurements(parsedRows);
+        } catch {
+          // Legacy string format
+          setEnableSizeGuide(true);
+          setSizeGuideHeaders(['Size', 'Chest', 'Length', 'Shoulder']);
+          const parsedRows: SizeMeasurementRow[] = [];
+          const lines = prod.size_guide.split('\n');
+          lines.forEach((line: string) => {
+            const parts = line.split(':');
+            if (parts.length >= 2) {
+              const size = parts[0].trim();
+              const details = parts[1];
+              const chestMatch = details.match(/Chest\s*([^,]+)/i);
+              const lengthMatch = details.match(/Length\s*([^,]+)/i);
+              const shoulderMatch = details.match(/Shoulder\s*([^,]+)/i);
+              parsedRows.push({
+                col0: size,
+                col1: chestMatch ? chestMatch[1].trim() : '38"',
+                col2: lengthMatch ? lengthMatch[1].trim() : '28"',
+                col3: shoulderMatch ? shoulderMatch[1].trim() : '18"',
+              });
+            }
+          });
+          if (parsedRows.length > 0) setSizeMeasurements(parsedRows);
+        }
+      } else {
+        setEnableSizeGuide(false);
+        setSizeGuideHeaders(['Size', 'Chest', 'Length', 'Shoulder']);
+        setSizeMeasurements([
+          { col0: 'S', col1: '38"', col2: '27"', col3: '17"' },
+          { col0: 'M', col1: '40"', col2: '28"', col3: '18"' },
+          { col0: 'L', col1: '44"', col2: '29"', col3: '19"' },
+        ]);
       }
 
       // Fetch Variants
@@ -194,7 +225,7 @@ export default function EditProductPage() {
   const addSizeMeasurementRow = () => {
     setSizeMeasurements([
       ...sizeMeasurements,
-      { size: 'XL', chest: '48"', length: '30"', shoulder: '20"' },
+      { col0: 'XL', col1: '48"', col2: '30"', col3: '20"' },
     ]);
   };
 
@@ -216,9 +247,14 @@ export default function EditProductPage() {
     setUploading(true);
 
     try {
-      const formattedSizeGuide = sizeMeasurements
-        .map((m) => `${m.size}: Chest ${m.chest}, Length ${m.length}, Shoulder ${m.shoulder}`)
-        .join('\n');
+      // Format Size Guide: if enabled, store structured JSON with custom headers & rows, otherwise null
+      const formattedSizeGuide = enableSizeGuide
+        ? JSON.stringify({
+            enabled: true,
+            headers: sizeGuideHeaders,
+            rows: sizeMeasurements,
+          })
+        : null;
 
       // Update Main Product
       const { error: prodError } = await supabase
@@ -563,74 +599,146 @@ export default function EditProductPage() {
 
         {/* 4. Structured Size Guide Measurement Chart Builder */}
         <div className="bg-white p-6 rounded-3xl border border-gray-200 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="font-bold text-sm text-gray-900 font-serif flex items-center gap-1.5">
-              <Ruler className="w-4 h-4 text-[#a63b7e]" /> 4. Custom Size Guide Measurement Chart Builder
-            </h3>
-            <button
-              type="button"
-              onClick={addSizeMeasurementRow}
-              className="bg-pink-50 text-[#a63b7e] hover:bg-pink-100 px-3.5 py-1.5 rounded-xl font-bold text-xs transition flex items-center gap-1 border border-pink-200"
-            >
-              <Plus className="w-3.5 h-3.5" /> Add Size Measurement Row
-            </button>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-4">
+            <div>
+              <h3 className="font-bold text-sm text-gray-900 font-serif flex items-center gap-1.5">
+                <Ruler className="w-4 h-4 text-[#a63b7e]" /> 4. Custom Size Guide Measurement Chart Builder
+              </h3>
+              <p className="text-[11px] text-gray-500">Structured measurements rendered inside the storefront Size Guide modal window.</p>
+            </div>
+
+            {/* ON / OFF Toggle Switch */}
+            <div className="flex items-center gap-3">
+              <span className={`text-xs font-extrabold px-2.5 py-1 rounded-full transition-colors ${
+                enableSizeGuide ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+              }`}>
+                {enableSizeGuide ? 'Size Guide: ON' : 'Size Guide: OFF'}
+              </span>
+              <button
+                type="button"
+                onClick={() => setEnableSizeGuide(!enableSizeGuide)}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  enableSizeGuide ? 'bg-[#a63b7e]' : 'bg-gray-300'
+                }`}
+                title={enableSizeGuide ? 'Turn OFF Size Guide' : 'Turn ON Size Guide'}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                    enableSizeGuide ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
           </div>
 
-          <div className="space-y-3">
-            {sizeMeasurements.map((m, i) => (
-              <div key={i} className="flex flex-wrap items-center gap-3 p-3 bg-gray-50 rounded-2xl border border-gray-200">
-                <div className="w-32">
-                  <label className="text-[10px] font-bold text-gray-500 block">Size (Custom / Select)</label>
-                  <input
-                    type="text"
-                    list="standard-size-list"
-                    value={m.size}
-                    onChange={(e) => updateSizeMeasurementRow(i, 'size', e.target.value)}
-                    placeholder="e.g. 5 Year, S, 32"
-                    className="w-full px-2.5 py-1 border border-gray-300 rounded-lg text-xs bg-white font-bold text-gray-900"
-                  />
+          {enableSizeGuide ? (
+            <div className="space-y-4 pt-1">
+              {/* Customizable Column Header Names Bar */}
+              <div className="p-3.5 bg-gradient-to-r from-pink-50/70 via-purple-50/40 to-white rounded-2xl border border-pink-100 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-extrabold uppercase tracking-wider text-[#a63b7e] block">
+                    Customize Measurement Column Header Titles
+                  </label>
+                  <span className="text-[10px] text-gray-400 font-medium">Click any title to edit</span>
                 </div>
-
-                <div className="w-28">
-                  <label className="text-[10px] font-bold text-gray-500 block">Chest (Inches)</label>
-                  <input
-                    type="text"
-                    value={m.chest}
-                    onChange={(e) => updateSizeMeasurementRow(i, 'chest', e.target.value)}
-                    className="w-full px-2.5 py-1 border border-gray-300 rounded-lg text-xs bg-white"
-                  />
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  {sizeGuideHeaders.map((header, idx) => (
+                    <div key={idx}>
+                      <span className="text-[9px] text-gray-500 font-bold block mb-0.5">Column {idx + 1} Name</span>
+                      <input
+                        type="text"
+                        value={header}
+                        onChange={(e) => {
+                          const newHeaders = [...sizeGuideHeaders] as [string, string, string, string];
+                          newHeaders[idx] = e.target.value;
+                          setSizeGuideHeaders(newHeaders);
+                        }}
+                        className="w-full px-2.5 py-1.5 border border-pink-200 rounded-xl text-xs bg-white font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#a63b7e]"
+                        placeholder={`Column ${idx + 1}`}
+                      />
+                    </div>
+                  ))}
                 </div>
-
-                <div className="w-28">
-                  <label className="text-[10px] font-bold text-gray-500 block">Length (Inches)</label>
-                  <input
-                    type="text"
-                    value={m.length}
-                    onChange={(e) => updateSizeMeasurementRow(i, 'length', e.target.value)}
-                    className="w-full px-2.5 py-1 border border-gray-300 rounded-lg text-xs bg-white"
-                  />
-                </div>
-
-                <div className="w-28">
-                  <label className="text-[10px] font-bold text-gray-500 block">Shoulder (Inches)</label>
-                  <input
-                    type="text"
-                    value={m.shoulder}
-                    onChange={(e) => updateSizeMeasurementRow(i, 'shoulder', e.target.value)}
-                    className="w-full px-2.5 py-1 border border-gray-300 rounded-lg text-xs bg-white"
-                  />
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => removeSizeMeasurementRow(i)}
-                  className="p-1.5 text-gray-400 hover:text-red-600 mt-4"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
               </div>
-            ))}
-          </div>
+
+              {/* Rows List */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-gray-700">Size Measurement Rows</span>
+                  <button
+                    type="button"
+                    onClick={addSizeMeasurementRow}
+                    className="bg-pink-50 text-[#a63b7e] hover:bg-pink-100 px-3.5 py-1.5 rounded-xl font-bold text-xs transition flex items-center gap-1 border border-pink-200"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Add Size Measurement Row
+                  </button>
+                </div>
+
+                {sizeMeasurements.map((m, i) => (
+                  <div key={i} className="flex flex-wrap items-center gap-3 p-3 bg-gray-50 rounded-2xl border border-gray-200">
+                    <div className="w-32">
+                      <label className="text-[10px] font-bold text-gray-500 block truncate">{sizeGuideHeaders[0] || 'Size'}</label>
+                      <input
+                        type="text"
+                        list="standard-size-list"
+                        value={m.col0}
+                        onChange={(e) => updateSizeMeasurementRow(i, 'col0', e.target.value)}
+                        placeholder="e.g. 5 Year, S, 32"
+                        className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white font-bold text-gray-900"
+                      />
+                    </div>
+
+                    <div className="w-28">
+                      <label className="text-[10px] font-bold text-gray-500 block truncate">{sizeGuideHeaders[1] || 'Chest'}</label>
+                      <input
+                        type="text"
+                        value={m.col1}
+                        onChange={(e) => updateSizeMeasurementRow(i, 'col1', e.target.value)}
+                        placeholder="e.g. 38&quot;"
+                        className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white"
+                      />
+                    </div>
+
+                    <div className="w-28">
+                      <label className="text-[10px] font-bold text-gray-500 block truncate">{sizeGuideHeaders[2] || 'Length'}</label>
+                      <input
+                        type="text"
+                        value={m.col2}
+                        onChange={(e) => updateSizeMeasurementRow(i, 'col2', e.target.value)}
+                        placeholder="e.g. 28&quot;"
+                        className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white"
+                      />
+                    </div>
+
+                    <div className="w-28">
+                      <label className="text-[10px] font-bold text-gray-500 block truncate">{sizeGuideHeaders[3] || 'Shoulder'}</label>
+                      <input
+                        type="text"
+                        value={m.col3}
+                        onChange={(e) => updateSizeMeasurementRow(i, 'col3', e.target.value)}
+                        placeholder="e.g. 18&quot;"
+                        className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white"
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => removeSizeMeasurementRow(i)}
+                      className="p-1.5 text-gray-400 hover:text-red-600 mt-4 transition"
+                      title="Remove Row"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="p-5 bg-gray-50 rounded-2xl border border-dashed border-gray-300 text-center space-y-1">
+              <p className="text-xs font-bold text-gray-700">Size Guide is currently turned OFF for this product</p>
+              <p className="text-[11px] text-gray-500">The "Size Guide" button will not appear on the storefront product page.</p>
+            </div>
+          )}
         </div>
 
         {/* 5. Promotional Badges & Submit */}

@@ -14,13 +14,6 @@ interface ProductDetailClientProps {
   relatedProducts: Product[];
 }
 
-interface ParsedSizeRow {
-  size: string;
-  chest: string;
-  length: string;
-  shoulder: string;
-}
-
 export const ProductDetailClient: React.FC<ProductDetailClientProps> = ({ product, relatedProducts }) => {
   const { addItem } = useCartStore();
   const { toggleWishlist, isInWishlist } = useWishlistStore();
@@ -38,25 +31,63 @@ export const ProductDetailClient: React.FC<ProductDetailClientProps> = ({ produc
     ? product.variants.filter(v => v.is_active !== false)
     : [];
 
-  // Helper to parse size guide lines
-  const parsedSizeGuideRows = React.useMemo(() => {
-    if (!product.size_guide) return [];
-    const lines = product.size_guide.split('\n');
-    const rows: { size: string }[] = [];
-    lines.forEach((line) => {
-      const parts = line.split(':');
-      if (parts.length >= 2 && parts[0].trim()) {
-        rows.push({ size: parts[0].trim() });
+  // Structured Size Guide Parser supporting new JSON { enabled, headers, rows } and legacy string format
+  const sizeGuideInfo = React.useMemo(() => {
+    if (!product.size_guide) {
+      return { hasGuide: false, headers: ['Size', 'Chest', 'Length', 'Shoulder'], rows: [] as Array<{ col0: string; col1: string; col2: string; col3: string }> };
+    }
+
+    try {
+      const parsed = JSON.parse(product.size_guide);
+      if (parsed && typeof parsed === 'object') {
+        if (parsed.enabled === false) {
+          return { hasGuide: false, headers: ['Size', 'Chest', 'Length', 'Shoulder'], rows: [] as Array<{ col0: string; col1: string; col2: string; col3: string }> };
+        }
+        const headers = (Array.isArray(parsed.headers) && parsed.headers.length >= 4)
+          ? parsed.headers
+          : ['Size', 'Chest', 'Length', 'Shoulder'];
+        const rows = Array.isArray(parsed.rows) ? parsed.rows : [];
+        return {
+          hasGuide: rows.length > 0,
+          headers,
+          rows: rows as Array<{ col0: string; col1: string; col2: string; col3: string }>,
+        };
       }
-    });
-    return rows;
+    } catch {
+      // Legacy text format parser (e.g. S: Chest 38", Length 27", Shoulder 17")
+      const lines = product.size_guide.split('\n');
+      const legacyRows: Array<{ col0: string; col1: string; col2: string; col3: string }> = [];
+      lines.forEach((line) => {
+        const parts = line.split(':');
+        if (parts.length >= 2) {
+          const size = parts[0].trim();
+          const details = parts[1];
+          const chestMatch = details.match(/Chest\s*([^,]+)/i);
+          const lengthMatch = details.match(/Length\s*([^,]+)/i);
+          const shoulderMatch = details.match(/Shoulder\s*([^,]+)/i);
+          legacyRows.push({
+            col0: size || 'M',
+            col1: chestMatch ? chestMatch[1].trim() : '-',
+            col2: lengthMatch ? lengthMatch[1].trim() : '-',
+            col3: shoulderMatch ? shoulderMatch[1].trim() : '-',
+          });
+        }
+      });
+      return {
+        hasGuide: legacyRows.length > 0,
+        headers: ['Size', 'Chest', 'Length', 'Shoulder'],
+        rows: legacyRows,
+      };
+    }
+
+    return { hasGuide: false, headers: ['Size', 'Chest', 'Length', 'Shoulder'], rows: [] as Array<{ col0: string; col1: string; col2: string; col3: string }> };
   }, [product.size_guide]);
 
   // Extract exact sizes created for this product
   const availableSizes = Array.from(new Set(activeVariants.map(v => v.size).filter((s): s is string => Boolean(s))));
 
   // Render ONLY the exact sizes created for this product in variants or size guide
-  const sizeGuideSizes = parsedSizeGuideRows.map(r => r.size);
+  const sizeGuideSizes = sizeGuideInfo.rows.map(r => r.col0).filter(Boolean);
   const sizesToRender = availableSizes.length > 0 
     ? availableSizes 
     : (sizeGuideSizes.length > 0 ? sizeGuideSizes : ['S', 'M', 'L']);
@@ -131,48 +162,6 @@ export const ProductDetailClient: React.FC<ProductDetailClientProps> = ({ produc
     `Price: Rs. ${displaySalePrice}\n` +
     `Link: ${typeof window !== 'undefined' ? window.location.href : ''}`
   );
-
-  // Helper to parse size guide lines into a clean table structure matching reference Image 1
-  const parseSizeGuide = (): ParsedSizeRow[] => {
-    if (!product.size_guide) {
-      return [
-        { size: 'S', chest: '38"', length: '27"', shoulder: '17"' },
-        { size: 'M', chest: '40"', length: '28"', shoulder: '18"' },
-        { size: 'L', chest: '44"', length: '29"', shoulder: '19"' },
-        { size: 'XL', chest: '48"', length: '30"', shoulder: '20"' },
-        { size: '2XL', chest: '52"', length: '31"', shoulder: '21"' },
-      ];
-    }
-
-    const lines = product.size_guide.split('\n');
-    const rows: ParsedSizeRow[] = [];
-
-    lines.forEach((line) => {
-      const parts = line.split(':');
-      if (parts.length >= 2) {
-        const size = parts[0].trim();
-        const details = parts[1];
-        const chestMatch = details.match(/Chest\s*([^,]+)/i);
-        const lengthMatch = details.match(/Length\s*([^,]+)/i);
-        const shoulderMatch = details.match(/Shoulder\s*([^,]+)/i);
-
-        rows.push({
-          size: size || 'M',
-          chest: chestMatch ? chestMatch[1].trim() : '-',
-          length: lengthMatch ? lengthMatch[1].trim() : '-',
-          shoulder: shoulderMatch ? shoulderMatch[1].trim() : '-',
-        });
-      }
-    });
-
-    return rows.length > 0 ? rows : [
-      { size: 'S', chest: '38"', length: '27"', shoulder: '17"' },
-      { size: 'M', chest: '40"', length: '28"', shoulder: '18"' },
-      { size: 'L', chest: '44"', length: '29"', shoulder: '19"' },
-    ];
-  };
-
-  const parsedSizeRows = parseSizeGuide();
 
   return (
     <div className="bg-gray-50/50 min-h-screen pb-12 md:pb-16">
@@ -276,13 +265,15 @@ export const ProductDetailClient: React.FC<ProductDetailClientProps> = ({ produc
                 <label className="text-[11px] sm:text-xs font-extrabold text-gray-900 uppercase tracking-wider">
                   Select Size
                 </label>
-                <button
-                  type="button"
-                  onClick={() => setShowSizeGuide(true)}
-                  className="text-[11px] sm:text-xs font-bold text-[#a63b7e] hover:underline flex items-center gap-1"
-                >
-                  <Ruler className="w-3.5 h-3.5" /> Size Guide
-                </button>
+                {sizeGuideInfo.hasGuide && (
+                  <button
+                    type="button"
+                    onClick={() => setShowSizeGuide(true)}
+                    className="text-[11px] sm:text-xs font-bold text-[#a63b7e] hover:underline flex items-center gap-1"
+                  >
+                    <Ruler className="w-3.5 h-3.5" /> Size Guide
+                  </button>
+                )}
               </div>
 
               <div className="flex flex-wrap gap-2">
@@ -318,10 +309,10 @@ export const ProductDetailClient: React.FC<ProductDetailClientProps> = ({ produc
                       key={col}
                       type="button"
                       onClick={() => setSelectedColor(col)}
-                      className={`px-3.5 py-1.5 rounded-xl border text-xs font-bold transition active:scale-95 ${
+                      className={`px-3.5 py-1.5 rounded-xl font-bold text-xs border transition-all active:scale-95 ${
                         selectedColor === col
-                          ? 'bg-gray-900 text-white border-gray-900 shadow-sm'
-                          : 'bg-white text-gray-700 border-gray-200 hover:border-gray-400'
+                          ? 'bg-gray-900 text-white border-gray-900 shadow-xs ring-2 ring-gray-200'
+                          : 'bg-white text-gray-700 border-gray-300 hover:border-gray-500'
                       }`}
                     >
                       {col}
@@ -331,21 +322,25 @@ export const ProductDetailClient: React.FC<ProductDetailClientProps> = ({ produc
               </div>
             )}
 
-            {/* Stock Notice & Quantity Selector */}
-            <div className="flex items-center justify-between pt-1">
-              <div>
-                <label className="text-[11px] sm:text-xs font-extrabold text-gray-900 uppercase tracking-wider block mb-1">
+            {/* Quantity Selector & Stock Indicator */}
+            <div className="flex items-center justify-between pt-2">
+              <div className="flex items-center gap-3">
+                <label className="text-[11px] sm:text-xs font-bold text-gray-700 uppercase tracking-wider">
                   Quantity
                 </label>
-                <div className="flex items-center border border-gray-300 rounded-xl bg-white shadow-xs">
+                <div className="flex items-center border border-gray-300 rounded-xl bg-white shadow-2xs">
                   <button
+                    type="button"
                     onClick={() => setQuantity(Math.max(1, quantity - 1))}
                     className="w-9 h-9 text-gray-600 font-bold hover:bg-gray-100 rounded-l-xl active:bg-gray-200"
                   >
                     -
                   </button>
-                  <span className="w-10 text-center text-xs font-extrabold text-gray-900">{quantity}</span>
+                  <span className="w-10 text-center text-xs font-extrabold text-gray-900">
+                    {quantity}
+                  </span>
                   <button
+                    type="button"
                     onClick={() => setQuantity(quantity + 1)}
                     className="w-9 h-9 text-gray-600 font-bold hover:bg-gray-100 rounded-r-xl active:bg-gray-200"
                   >
@@ -438,8 +433,8 @@ export const ProductDetailClient: React.FC<ProductDetailClientProps> = ({ produc
         )}
       </div>
 
-      {/* Size Guide Modal (Matching exact Image 1 design) */}
-      {showSizeGuide && (
+      {/* Size Guide Modal (Matching exact Image 1 design with dynamic column headers) */}
+      {showSizeGuide && sizeGuideInfo.hasGuide && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
           <div className="bg-white rounded-3xl p-5 sm:p-8 max-w-lg w-full shadow-2xl relative space-y-4 text-xs">
             <button
@@ -455,24 +450,28 @@ export const ProductDetailClient: React.FC<ProductDetailClientProps> = ({ produc
               <p className="text-gray-500 mt-0.5 text-[11px]">Measurements in inches. Standard Pakistani fitting.</p>
             </div>
 
-            {/* Clean HTML Table Matching Reference Image 1 */}
+            {/* Clean HTML Table with Dynamic Column Headers & Rows */}
             <div className="overflow-hidden border border-gray-200 rounded-2xl">
               <table className="w-full text-center text-xs">
                 <thead className="bg-gray-50 text-gray-700 font-extrabold border-b border-gray-200">
                   <tr>
-                    <th className="py-2.5 px-3 border-r border-gray-200 w-1/4">Size</th>
-                    <th className="py-2.5 px-3 border-r border-gray-200 w-1/4">Chest</th>
-                    <th className="py-2.5 px-3 border-r border-gray-200 w-1/4">Length</th>
-                    <th className="py-2.5 px-3 w-1/4">Shoulder</th>
+                    {sizeGuideInfo.headers.map((header: string, idx: number) => (
+                      <th
+                        key={idx}
+                        className={`py-2.5 px-3 ${idx < sizeGuideInfo.headers.length - 1 ? 'border-r border-gray-200' : ''}`}
+                      >
+                        {header}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 font-medium text-gray-800">
-                  {parsedSizeRows.map((row, idx) => (
+                  {sizeGuideInfo.rows.map((row: any, idx: number) => (
                     <tr key={idx} className={idx % 2 === 1 ? 'bg-gray-50/50' : 'bg-white'}>
-                      <td className="py-2.5 px-3 font-black text-gray-900 border-r border-gray-200">{row.size}</td>
-                      <td className="py-2.5 px-3 border-r border-gray-200">{row.chest}</td>
-                      <td className="py-2.5 px-3 border-r border-gray-200">{row.length}</td>
-                      <td className="py-2.5 px-3">{row.shoulder}</td>
+                      <td className="py-2.5 px-3 font-black text-gray-900 border-r border-gray-200">{row.col0 || row.size || '-'}</td>
+                      <td className="py-2.5 px-3 border-r border-gray-200">{row.col1 || row.chest || '-'}</td>
+                      <td className="py-2.5 px-3 border-r border-gray-200">{row.col2 || row.length || '-'}</td>
+                      <td className="py-2.5 px-3">{row.col3 || row.shoulder || '-'}</td>
                     </tr>
                   ))}
                 </tbody>
