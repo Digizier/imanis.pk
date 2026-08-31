@@ -61,6 +61,9 @@ export default function AdminProductsPage() {
     try {
       // First delete child variants if present
       await supabase.from('product_variants').delete().eq('product_id', deleteConfirmProduct.id);
+
+      // Delete from facebook_catalog_items if present
+      await supabase.from('facebook_catalog_items').delete().eq('product_id', deleteConfirmProduct.id);
       
       // Delete product
       const { error } = await supabase.from('products').delete().eq('id', deleteConfirmProduct.id);

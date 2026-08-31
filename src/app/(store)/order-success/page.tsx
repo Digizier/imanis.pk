@@ -1,15 +1,25 @@
 'use client';
 
-import React, { Suspense } from 'react';
+import React, { Suspense, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { CheckCircle2, MessageCircle, ShoppingBag, Truck } from 'lucide-react';
+import { trackMetaEvent } from '@/components/analytics/MetaPixel';
 
 function OrderSuccessContent() {
   const searchParams = useSearchParams();
   const orderNumber = searchParams.get('number') || `IMP-${Math.floor(100000 + Math.random() * 900000)}`;
   const totalAmount = searchParams.get('total') || '0';
   const paymentMethod = searchParams.get('method') || 'cod';
+
+  useEffect(() => {
+    trackMetaEvent('Purchase', {
+      content_type: 'product',
+      value: Number(totalAmount) || 0,
+      currency: 'PKR',
+      order_id: orderNumber,
+    });
+  }, [orderNumber, totalAmount]);
 
   const whatsappMessage = encodeURIComponent(
     `Assalam-o-Alaikum Imani's! I just placed Order #${orderNumber} for Rs. ${Number(totalAmount).toLocaleString()} (${paymentMethod.toUpperCase()}). Please confirm dispatch!`

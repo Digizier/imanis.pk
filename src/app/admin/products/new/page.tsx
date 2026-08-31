@@ -243,9 +243,35 @@ export default function AddProductPage() {
         }
       }
 
+      // Auto-Sync into Meta Product Catalog Table
+      if (newProduct) {
+        try {
+          const selectedCat = categories.find((c) => c.id === formData.categoryId);
+          await supabase.from('facebook_catalog_items').upsert({
+            id: productSku,
+            product_id: newProduct.id,
+            title: formData.name,
+            description: formData.shortDescription || formData.fullDescription || formData.name,
+            availability: parseInt(formData.totalStock, 10) > 0 ? 'in stock' : 'out of stock',
+            condition: 'new',
+            price: parseFloat(formData.regularPrice) || 0,
+            sale_price: formData.salePrice ? parseFloat(formData.salePrice) : null,
+            currency: 'PKR',
+            link: `https://imanis.pk/products/${newProduct.slug}`,
+            image_link: mainImage || 'https://imanis.pk/og-image.png',
+            brand: formData.brand || "Imani's Collection",
+            fb_product_category: selectedCat?.name || 'Apparel & Accessories > Clothing',
+            is_active: true,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'id' });
+        } catch (catalogSyncErr) {
+          console.warn('Auto catalog sync note:', catalogSyncErr);
+        }
+      }
+
       triggerRevalidate(['/', '/shop', `/products/${newProduct?.slug || formData.slug}`]);
 
-      setStatusMsg({ type: 'success', text: 'Product created and published to Supabase live store!' });
+      setStatusMsg({ type: 'success', text: 'Product created and published to Supabase live store & Meta Catalog!' });
       setTimeout(() => {
         router.push('/admin/products');
       }, 1000);

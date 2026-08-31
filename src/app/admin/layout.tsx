@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, ShoppingBag, ShoppingCart, FolderTree, Settings, Tag, LogOut, Store, Sparkles, Lock } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, ShoppingCart, FolderTree, Settings, Tag, LogOut, Store, Sparkles, Lock, Megaphone } from 'lucide-react';
 import PageLoader from '@/components/ui/PageLoader';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -70,6 +70,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { label: 'Categories & Tags', href: '/admin/categories', icon: FolderTree },
     { label: 'Homepage & Hero Banners', href: '/admin/homepage', icon: Sparkles },
     { label: 'Coupon Codes', href: '/admin/coupons', icon: Tag },
+    { label: 'Advertisement', href: '/admin/advertisement', icon: Megaphone },
     { label: 'Store Settings', href: '/admin/settings', icon: Settings },
   ];
 

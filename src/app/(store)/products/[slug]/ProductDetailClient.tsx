@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ShoppingBag, Heart, ShieldCheck, Truck, RotateCcw, Ruler, CheckCircle2, MessageCircle, ChevronRight, X } from 'lucide-react';
@@ -8,6 +8,8 @@ import { Product } from '@/types';
 import { useCartStore } from '@/lib/store/cart';
 import { useWishlistStore } from '@/lib/store/wishlist';
 import { ProductCard } from '@/components/storefront/ProductCard';
+
+import { trackMetaEvent } from '@/components/analytics/MetaPixel';
 
 interface ProductDetailClientProps {
   product: Product;
@@ -148,8 +150,30 @@ export const ProductDetailClient: React.FC<ProductDetailClientProps> = ({ produc
     ? Math.round(((displayRegularPrice - displaySalePrice) / displayRegularPrice) * 100)
     : 0;
 
+  // Track Meta Pixel ViewContent Event on PDP load
+  useEffect(() => {
+    trackMetaEvent('ViewContent', {
+      content_name: product.name,
+      content_ids: [product.sku || product.id],
+      content_type: 'product',
+      value: displaySalePrice,
+      currency: 'PKR',
+    });
+  }, [product.id, product.name, product.sku, displaySalePrice]);
+
   const handleAddToCart = () => {
     addItem(product, quantity, selectedSize, selectedColor, currentVariant);
+    
+    // Track Meta Pixel AddToCart Event
+    trackMetaEvent('AddToCart', {
+      content_name: product.name,
+      content_ids: [product.sku || product.id],
+      content_type: 'product',
+      value: displaySalePrice * quantity,
+      currency: 'PKR',
+      num_items: quantity,
+    });
+
     setAddedToast(true);
     setTimeout(() => setAddedToast(false), 3000);
   };

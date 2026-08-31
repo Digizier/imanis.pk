@@ -26,6 +26,7 @@ import {
   Smartphone,
   Globe
 } from 'lucide-react';
+import { trackMetaEvent } from '@/components/analytics/MetaPixel';
 
 const PAKISTAN_PROVINCES = [
   'Punjab',
@@ -101,6 +102,16 @@ export default function CheckoutPage() {
       }
     };
     fetchMethods();
+
+    // Track Meta Pixel InitiateCheckout Event
+    if (items.length > 0) {
+      trackMetaEvent('InitiateCheckout', {
+        num_items: items.length,
+        content_ids: items.map((i) => i.product.sku || i.product.id),
+        value: grandTotal,
+        currency: 'PKR',
+      });
+    }
   }, []);
 
   const selectedMethod = paymentMethods.find((m) => m.id === selectedMethodId) || paymentMethods[0];
