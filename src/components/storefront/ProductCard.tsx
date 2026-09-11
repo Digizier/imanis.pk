@@ -7,6 +7,7 @@ import { Heart, ShoppingBag, Star } from 'lucide-react';
 import { Product } from '@/types';
 import { useCartStore } from '@/lib/store/cart';
 import { useWishlistStore } from '@/lib/store/wishlist';
+import { getProductReviewData } from '@/lib/reviews';
 
 interface ProductCardProps {
   product: Product;
@@ -100,14 +101,21 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           </Link>
 
           {/* Star Ratings */}
-          <div className="flex items-center gap-1 mt-1.5 text-amber-400">
-            <div className="flex">
-              {[...Array(5)].map((_, i) => (
-                <Star key={i} className="w-3 h-3 fill-current" />
-              ))}
-            </div>
-            <span className="text-[10px] font-bold text-gray-500 ml-1">4.8 (46)</span>
-          </div>
+          {(() => {
+            const { rating, reviewCount } = getProductReviewData(product);
+            return (
+              <div className="flex items-center gap-1 mt-1.5 text-amber-400">
+                <div className="flex">
+                  {[...Array(5)].map((_, i) => (
+                    <Star key={i} className="w-3 h-3 fill-current" />
+                  ))}
+                </div>
+                <span className="text-[10px] font-bold text-gray-500 ml-1">
+                  {rating.toFixed(1)} ({reviewCount})
+                </span>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Price & Mobile Add Action */}

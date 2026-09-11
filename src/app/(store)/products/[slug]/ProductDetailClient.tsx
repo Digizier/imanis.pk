@@ -8,7 +8,7 @@ import { Product } from '@/types';
 import { useCartStore } from '@/lib/store/cart';
 import { useWishlistStore } from '@/lib/store/wishlist';
 import { ProductCard } from '@/components/storefront/ProductCard';
-
+import { getProductReviewData } from '@/lib/reviews';
 import { trackMetaEvent } from '@/components/analytics/MetaPixel';
 
 interface ProductDetailClientProps {
@@ -250,14 +250,21 @@ export const ProductDetailClient: React.FC<ProductDetailClientProps> = ({ produc
                 {product.name}
               </h1>
 
-              <div className="flex items-center gap-2 mt-2 text-xs">
-                <div className="flex text-amber-400">
-                  {[...Array(5)].map((_, i) => (
-                    <span key={i}>★</span>
-                  ))}
-                </div>
-                <span className="font-bold text-gray-700 text-[11px] sm:text-xs">4.8 (46 Customer Reviews)</span>
-              </div>
+              {(() => {
+                const { rating, reviewCount } = getProductReviewData(product);
+                return (
+                  <div className="flex items-center gap-2 mt-2 text-xs">
+                    <div className="flex text-amber-400">
+                      {[...Array(5)].map((_, i) => (
+                        <span key={i}>★</span>
+                      ))}
+                    </div>
+                    <span className="font-bold text-gray-700 text-[11px] sm:text-xs">
+                      {rating.toFixed(1)} ({reviewCount} Customer Reviews)
+                    </span>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Dynamic Price Display Card */}
