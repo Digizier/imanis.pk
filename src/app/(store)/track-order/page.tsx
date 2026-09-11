@@ -11,11 +11,34 @@ export default function TrackOrderPage() {
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [courierInfo, setCourierInfo] = useState<any>(null);
+  const [courierLoading, setCourierLoading] = useState(false);
+
+  const fetchLiveTracking = async (orderId: string, orioOrderId?: string | null) => {
+    setCourierLoading(true);
+    setCourierInfo(null);
+    try {
+      const res = await fetch('/api/orio/track', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, orioOrderId }),
+      });
+      const resData = await res.json();
+      if (resData.success && resData.data) {
+        setCourierInfo(resData.data);
+      }
+    } catch {
+      // Graceful fallback if tracking not yet generated
+    } finally {
+      setCourierLoading(false);
+    }
+  };
 
   const handleTrackOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
     setOrder(null);
+    setCourierInfo(null);
 
     if (!orderNumber.trim()) {
       setErrorMsg('Please enter your Order Number (e.g. IMP-1001).');
@@ -34,6 +57,9 @@ export default function TrackOrderPage() {
         setErrorMsg('Order not found. Please verify your order number.');
       } else {
         setOrder(data);
+        if (data.orio_order_id || data.tracking_number) {
+          fetchLiveTracking(data.id, data.orio_order_id || data.tracking_number);
+        }
       }
     } catch (err: any) {
       setErrorMsg('Error tracking order. Please try again.');
@@ -111,6 +137,69 @@ export default function TrackOrderPage() {
               4. Delivered
             </div>
           </div>
+
+          {/* Courier Details Card if booked */}
+          {(order.orio_consignment_no || order.tracking_number || order.courier) && (
+            <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-2xl space-y-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700">
+                    <Truck className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-emerald-700 font-bold uppercase tracking-wider block">Courier Logistics</span>
+                    <span className="font-extrabold text-xs text-gray-900">
+                      {courierInfo?.courier_name || order.courier || 'ORIO Multi-Courier Network'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="sm:text-right">
+                  <span className="text-[10px] text-gray-500 block">Airway Bill / Consignment #:</span>
+                  <span className="font-mono font-black text-emerald-800 text-xs bg-emerald-100 px-2 py-0.5 rounded-md inline-block">
+                    {order.orio_consignment_no || order.tracking_number || order.orio_order_id}
+                  </span>
+                </div>
+              </div>
+
+              {courierLoading && (
+                <p className="text-[11px] text-emerald-600 animate-pulse pt-1">
+                  Connecting to live courier tracking network...
+                </p>
+              )}
+
+              {courierInfo && (
+                <div className="pt-2 border-t border-emerald-200/60 space-y-1.5 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600 font-medium">Live Status:</span>
+                    <span className="font-bold text-emerald-800 uppercase bg-white px-2 py-0.5 rounded-full border border-emerald-300">
+                      {courierInfo.status || courierInfo.courier_status || 'In Transit'}
+                    </span>
+                  </div>
+                  {courierInfo.current_location && (
+                    <div className="flex items-center gap-1.5 text-gray-600 text-[11px]">
+                      <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>Current Location: <strong className="text-gray-900">{courierInfo.current_location}</strong></span>
+                    </div>
+                  )}
+                  {Array.isArray(courierInfo.history) && courierInfo.history.length > 0 && (
+                    <div className="pt-2 space-y-1.5 max-h-36 overflow-y-auto">
+                      <span className="text-[10px] font-bold text-gray-500 uppercase block">Milestones:</span>
+                      {courierInfo.history.map((hist: any, hIdx: number) => (
+                        <div key={hIdx} className="flex items-start gap-2 text-[11px] bg-white/60 p-1.5 rounded-lg border border-emerald-100">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                          <div className="flex-1 leading-tight">
+                            <span className="font-bold text-gray-900">{hist.status || hist.activity}</span>
+                            <span className="text-[10px] text-gray-500 block">{hist.date_time || hist.created_at}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs bg-gray-50 p-4 rounded-2xl">
             <div>

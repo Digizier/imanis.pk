@@ -104,6 +104,12 @@ export interface Order {
   order_status: string;
   payment_receipt_url?: string | null;
   payment_proof_url?: string | null;
+  tracking_number?: string | null;
+  courier?: string | null;
+  orio_order_id?: string | null;
+  orio_consignment_no?: string | null;
+  area?: string | null;
+  landmark?: string | null;
   items?: OrderItem[];
   created_at: string;
 }

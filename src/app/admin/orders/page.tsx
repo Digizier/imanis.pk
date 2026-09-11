@@ -45,6 +45,12 @@ export default function AdminOrdersPage() {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // ORIO Logistics State
+  const [bookingOrioId, setBookingOrioId] = useState<string | null>(null);
+  const [trackingModalOrder, setTrackingModalOrder] = useState<Order | null>(null);
+  const [trackingInfo, setTrackingInfo] = useState<any>(null);
+  const [trackingLoading, setTrackingLoading] = useState(false);
+
   // Toast Notification State
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
@@ -148,6 +154,12 @@ export default function AdminOrdersPage() {
           shipping_fee: editOrder.shipping_fee,
           discount_amount: editOrder.discount_amount,
           total_amount: editOrder.total_amount,
+          courier: editOrder.courier || null,
+          tracking_number: editOrder.tracking_number || null,
+          orio_order_id: editOrder.orio_order_id || null,
+          orio_consignment_no: editOrder.orio_consignment_no || null,
+          area: editOrder.area || null,
+          landmark: editOrder.landmark || null,
         })
         .eq('id', editOrder.id);
 
@@ -172,6 +184,55 @@ export default function AdminOrdersPage() {
       fetchOrders();
     } catch (err: any) {
       showToast('Failed to update order: ' + err.message, 'error');
+    }
+  };
+
+  const handleBookWithOrio = async (ord: Order) => {
+    if (bookingOrioId) return;
+    setBookingOrioId(ord.id);
+    try {
+      const res = await fetch('/api/orio/book', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: ord.id }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(`Order #${ord.order_number} booked in ORIO! Consignment: ${data.consignmentNo || data.orioOrderId}`);
+        fetchOrders();
+      } else {
+        showToast(`ORIO Error: ${data.message || 'Booking failed'}`, 'error');
+      }
+    } catch (err: any) {
+      showToast('Network error booking with ORIO: ' + err.message, 'error');
+    } finally {
+      setBookingOrioId(null);
+    }
+  };
+
+  const handleTrackOrio = async (ord: Order) => {
+    setTrackingModalOrder(ord);
+    setTrackingInfo(null);
+    setTrackingLoading(true);
+    try {
+      const res = await fetch('/api/orio/track', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: ord.id,
+          orioOrderId: ord.orio_order_id || ord.tracking_number,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setTrackingInfo(data.data);
+      } else {
+        setTrackingInfo({ error: data.message || 'No courier tracking information found yet' });
+      }
+    } catch (err: any) {
+      setTrackingInfo({ error: 'Network error querying ORIO tracking: ' + err.message });
+    } finally {
+      setTrackingLoading(false);
     }
   };
 
@@ -222,10 +283,22 @@ export default function AdminOrdersPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 print-hide">
         <div>
           <h1 className="text-2xl font-extrabold text-gray-900 font-serif">Store Orders Manager</h1>
-          <p className="text-xs text-gray-500 mt-0.5">Full Pakistani COD fulfillment center, order editor, and branded invoice engine.</p>
+          <p className="text-xs text-gray-500 mt-0.5">Full Pakistani COD fulfillment center, ORIO Multi-Courier logistics, and branded invoice engine.</p>
         </div>
 
         <div className="flex items-center gap-2">
+          <a
+            href="https://oms.getorio.com/orders"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2.5 rounded-2xl text-xs font-bold shadow-md transition flex items-center gap-1.5"
+            title="Open ORIO Multi-Courier OMS Portal to Print Slips & Barcodes"
+          >
+            <Truck className="w-4 h-4 text-emerald-200" />
+            <span>ORIO Portal (Slips)</span>
+            <ExternalLink className="w-3 h-3 text-emerald-200" />
+          </a>
+
           <button
             onClick={() => setShowSettingsModal(true)}
             className="bg-gray-900 hover:bg-black text-white px-4 py-2.5 rounded-2xl text-xs font-bold shadow-md transition flex items-center gap-2"
@@ -262,7 +335,23 @@ export default function AdminOrdersPage() {
 
                   return (
                     <tr key={ord.id} className="hover:bg-gray-50/80 transition">
-                      <td className="p-4 font-bold font-mono text-gray-900">{ord.order_number}</td>
+                      <td className="p-4 font-bold font-mono text-gray-900">
+                        <div>{ord.order_number}</div>
+                        {ord.orio_order_id ? (
+                          <span
+                            onClick={() => handleTrackOrio(ord)}
+                            className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 mt-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-pointer hover:bg-emerald-100 transition"
+                            title="Click to track live ORIO courier shipment"
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            ORIO: {ord.orio_consignment_no || ord.orio_order_id}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 mt-1 rounded text-gray-400 bg-gray-50">
+                            Unbooked
+                          </span>
+                        )}
+                      </td>
                       <td className="p-4">
                         <span className="font-bold text-gray-900 block">{ord.customer_name}</span>
                         <span className="text-[10px] text-gray-500 block">{ord.customer_phone} ({ord.city})</span>
@@ -305,6 +394,32 @@ export default function AdminOrdersPage() {
                       </td>
                       <td className="p-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
+                          {/* ORIO Logistics Booking or Tracking Button */}
+                          {ord.orio_order_id ? (
+                            <button
+                              onClick={() => handleTrackOrio(ord)}
+                              className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl font-extrabold text-[11px] transition flex items-center gap-1 shadow-2xs border border-emerald-200 active:scale-95"
+                              title="Live ORIO Courier Tracking"
+                            >
+                              <Truck className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>Track</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleBookWithOrio(ord)}
+                              disabled={bookingOrioId === ord.id}
+                              className="px-2.5 py-1 bg-[#a63b7e]/10 hover:bg-[#a63b7e]/20 text-[#a63b7e] rounded-xl font-extrabold text-[11px] transition flex items-center gap-1 shadow-2xs border border-[#a63b7e]/30 active:scale-95 disabled:opacity-50"
+                              title="Book Courier with ORIO Multi-Courier OMS"
+                            >
+                              {bookingOrioId === ord.id ? (
+                                <div className="w-3.5 h-3.5 border-2 border-[#a63b7e] border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <Package className="w-3.5 h-3.5 text-[#a63b7e]" />
+                              )}
+                              <span>Book ORIO</span>
+                            </button>
+                          )}
+
                           {/* Payment Receipt Image Button */}
                           {receiptUrl ? (
                             <button
@@ -759,6 +874,48 @@ export default function AdminOrdersPage() {
                 </div>
               </div>
 
+              {/* Section 2.5: Logistics & ORIO Courier Details */}
+              <div className="p-4 bg-emerald-50/50 rounded-2xl border border-emerald-200 space-y-3">
+                <h4 className="font-extrabold text-gray-900 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                  <Truck className="w-4 h-4 text-emerald-600" /> Logistics & Courier Tracking Details
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="font-bold text-gray-700 block mb-1">Assigned Courier</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. ORIO / Trax / Leopards"
+                      value={editOrder.courier || ''}
+                      onChange={(e) => setEditOrder({ ...editOrder, courier: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl font-semibold text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-gray-700 block mb-1">ORIO Order ID</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 123456"
+                      value={editOrder.orio_order_id || ''}
+                      onChange={(e) => setEditOrder({ ...editOrder, orio_order_id: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl font-mono text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-gray-700 block mb-1">Consignment / Tracking #</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. TRAX-9821389"
+                      value={editOrder.orio_consignment_no || editOrder.tracking_number || ''}
+                      onChange={(e) => setEditOrder({ ...editOrder, orio_consignment_no: e.target.value, tracking_number: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl font-mono text-xs font-bold text-emerald-700"
+                    />
+                  </div>
+                </div>
+              </div>
+
               {/* Section 3: Ordered Items Editor */}
               {editOrder.items && editOrder.items.length > 0 && (
                 <div className="p-4 bg-gray-50/80 rounded-2xl border border-gray-200 space-y-3">
@@ -914,6 +1071,11 @@ export default function AdminOrdersPage() {
                   <p className="text-[10px] font-bold text-gray-700 uppercase">
                     Payment Method: {invoiceOrder.payment_method.toUpperCase()}
                   </p>
+                  {(invoiceOrder.orio_consignment_no || invoiceOrder.tracking_number) && (
+                    <p className="text-[10px] font-bold text-emerald-700 uppercase">
+                      Courier: ORIO Logistics (CN #{invoiceOrder.orio_consignment_no || invoiceOrder.tracking_number})
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -997,6 +1159,128 @@ export default function AdminOrdersPage() {
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal 5: Live ORIO Courier Tracking & Slips Modal */}
+      {trackingModalOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn print-hide">
+          <div className="bg-white rounded-3xl p-6 md:p-8 max-w-lg w-full shadow-2xl relative space-y-5 text-xs border border-gray-200">
+            <button
+              onClick={() => {
+                setTrackingModalOrder(null);
+                setTrackingInfo(null);
+              }}
+              className="absolute top-5 right-5 text-gray-400 hover:text-gray-900 font-bold text-lg"
+            >
+              ✕
+            </button>
+
+            <div className="border-b border-gray-100 pb-3 pr-8">
+              <div className="flex items-center gap-2">
+                <Truck className="w-5 h-5 text-emerald-600" />
+                <h3 className="text-xl font-extrabold text-gray-900 font-serif">ORIO Courier Tracking</h3>
+              </div>
+              <p className="text-gray-500 text-[11px] mt-0.5">
+                Order <strong className="font-mono text-gray-800">#{trackingModalOrder.order_number}</strong> — {trackingModalOrder.customer_name} ({trackingModalOrder.city})
+              </p>
+            </div>
+
+            {/* Quick Details Badge */}
+            <div className="grid grid-cols-2 gap-3 p-3 bg-gray-50 rounded-2xl border border-gray-100">
+              <div>
+                <span className="text-[10px] text-gray-400 block font-medium">ORIO Order ID:</span>
+                <span className="font-mono font-bold text-gray-900 text-xs">
+                  {trackingModalOrder.orio_order_id || 'N/A'}
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] text-gray-400 block font-medium">Consignment Number:</span>
+                <span className="font-mono font-bold text-emerald-700 text-xs">
+                  {trackingModalOrder.orio_consignment_no || trackingModalOrder.tracking_number || trackingModalOrder.orio_order_id || 'Pending Courier Pickup'}
+                </span>
+              </div>
+            </div>
+
+            {/* Live Tracking Information */}
+            <div className="space-y-3">
+              {trackingLoading ? (
+                <div className="py-10 text-center text-xs text-gray-500 flex flex-col items-center justify-center gap-2">
+                  <div className="w-5 h-5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+                  <span>Contacting ORIO Logistics servers...</span>
+                </div>
+              ) : trackingInfo?.error ? (
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-amber-800 text-center space-y-1">
+                  <AlertCircle className="w-5 h-5 text-amber-600 mx-auto" />
+                  <p className="font-bold">{trackingInfo.error}</p>
+                  <p className="text-[10px] text-amber-600">
+                    The order has been registered with ORIO. Real-time courier milestones update once the parcel is handed over to the courier (Trax / Leopards / PostEx).
+                  </p>
+                </div>
+              ) : trackingInfo ? (
+                <div className="space-y-3">
+                  <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-1">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] uppercase font-bold text-emerald-700">Live Courier Status</span>
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-600 text-white font-bold text-[10px] uppercase">
+                        {trackingInfo.status || trackingInfo.courier_status || 'Dispatched'}
+                      </span>
+                    </div>
+                    {trackingInfo.courier_name && (
+                      <p className="text-xs text-emerald-900 font-bold">
+                        Courier: {trackingInfo.courier_name}
+                      </p>
+                    )}
+                    {trackingInfo.current_location && (
+                      <p className="text-[11px] text-gray-600 flex items-center gap-1">
+                        <MapPin className="w-3.5 h-3.5 text-gray-400" />
+                        Location: {trackingInfo.current_location}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* History timeline if available */}
+                  {Array.isArray(trackingInfo.history) && trackingInfo.history.length > 0 && (
+                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                      <p className="font-bold text-gray-700 text-[11px]">Tracking History:</p>
+                      {trackingInfo.history.map((hist: any, hIdx: number) => (
+                        <div key={hist.id || hIdx} className="flex items-start gap-2.5 text-[11px] pb-2 border-b border-gray-100 last:border-0">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                          <div className="flex-1">
+                            <span className="font-bold text-gray-900">{hist.status || hist.activity}</span>
+                            <span className="text-gray-500 text-[10px] block">{hist.date_time || hist.created_at || hist.location}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : null}
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex gap-2.5 pt-2">
+              <a
+                href="https://oms.getorio.com/orders"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 bg-gray-900 hover:bg-black text-white py-3 rounded-2xl font-bold transition flex items-center justify-center gap-1.5 shadow-xs text-center"
+              >
+                <span>Print Slip on ORIO OMS</span>
+                <ExternalLink className="w-3.5 h-3.5 text-gray-300" />
+              </a>
+              <button
+                type="button"
+                onClick={() => {
+                  setTrackingModalOrder(null);
+                  setTrackingInfo(null);
+                }}
+                className="px-5 bg-gray-100 hover:bg-gray-200 text-gray-700 py-3 rounded-2xl font-bold transition"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
