@@ -288,7 +288,7 @@ export default function AdminOrdersPage() {
 
         <div className="flex items-center gap-2">
           <a
-            href="https://oms.getorio.com/orders"
+            href="https://oms.getorio.com/orderv1"
             target="_blank"
             rel="noopener noreferrer"
             className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2.5 rounded-2xl text-xs font-bold shadow-md transition flex items-center gap-1.5"
@@ -386,6 +386,7 @@ export default function AdminOrdersPage() {
                           <option value="pending">Pending</option>
                           <option value="confirmed">Confirmed</option>
                           <option value="processing">Processing</option>
+                          <option value="dispatched">Dispatched (ORIO)</option>
                           <option value="shipped">Shipped</option>
                           <option value="out_for_delivery">Out for Delivery</option>
                           <option value="delivered">Delivered</option>
@@ -800,6 +801,7 @@ export default function AdminOrdersPage() {
                       <option value="pending">Pending</option>
                       <option value="confirmed">Confirmed</option>
                       <option value="processing">Processing</option>
+                      <option value="dispatched">Dispatched (ORIO)</option>
                       <option value="shipped">Shipped</option>
                       <option value="out_for_delivery">Out for Delivery</option>
                       <option value="delivered">Delivered</option>
@@ -1263,7 +1265,7 @@ export default function AdminOrdersPage() {
             {/* Modal Actions */}
             <div className="flex gap-2.5 pt-2">
               <a
-                href="https://oms.getorio.com/orders"
+                href="https://oms.getorio.com/orderv1"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex-1 bg-gray-900 hover:bg-black text-white py-3 rounded-2xl font-bold transition flex items-center justify-center gap-1.5 shadow-xs text-center"

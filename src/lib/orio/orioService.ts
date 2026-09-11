@@ -116,6 +116,7 @@ export async function bookOrderWithOrio(params: OrioBookOrderParams): Promise<Or
   const userId = parseInt(process.env.ORIO_USER_ID || '6044', 10);
 
   const destinationCityId = getOrioCityId(params.city, params.province);
+  const customerPlatformId = parseInt(process.env.ORIO_CUSTOMER_PLATFORM_ID || '6514', 10);
 
   // Build clean address with landmarks & area
   const fullAddress = [
@@ -154,7 +155,7 @@ export async function bookOrderWithOrio(params: OrioBookOrderParams): Promise<Or
     destination_city_id: destinationCityId,
     order_ref: params.order_number,
     platform_id: 7, // 7 = Custom Web Platform
-    customer_platform_id: 7,
+    customer_platform_id: customerPlatformId,
     payment_method_id: params.payment_method.toLowerCase() === 'cod' ? 1 : 2, // 1 = COD, 2 = Prepaid
     remarks: params.order_notes || `Order ${params.order_number} from Imani's Collection`,
     shipping_charges: Math.round(params.shipping_fee || 0),
@@ -181,8 +182,26 @@ export async function bookOrderWithOrio(params: OrioBookOrderParams): Promise<Or
 
     if (data.status === 1 || data.status === '1') {
       const orderResult = data.payload?.[0];
+
+      // Check if individual order failed validation
+      if (orderResult && (orderResult.status === 0 || orderResult.status === '0')) {
+        return {
+          success: false,
+          message: orderResult.message || 'ORIO order booking validation failed',
+          rawPayload: data,
+        };
+      }
+
       const orioId = orderResult?.payload?.id || orderResult?.id;
       const consignmentNo = orderResult?.payload?.consignment_no || orderResult?.consignment_no;
+
+      if (!orioId) {
+        return {
+          success: false,
+          message: orderResult?.message || data.message || 'Failed to retrieve ORIO Order ID',
+          rawPayload: data,
+        };
+      }
 
       return {
         success: true,
