@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { supabase } from '@/lib/supabase/client';
 import { uploadImageToSupabase } from '@/lib/supabase/storage';
+import { triggerRevalidate } from '@/lib/revalidate';
 import {
   Settings,
   CreditCard,
@@ -29,7 +30,8 @@ import {
   Clock,
   Check,
   ShieldAlert,
-  Loader2
+  Loader2,
+  Truck
 } from 'lucide-react';
 
 export interface PaymentMethodItem {
@@ -86,6 +88,8 @@ export default function AdminSettingsPage() {
     email: 'imanisbyanila@gmail.com',
     announcement_text: '⚡ FREE SHIPPING ON RS. 2999+ ORDERS ACROSS PAKISTAN | 7-DAY RETURN POLICY',
     address: 'Shop 1&2 Meharma Market, Street 1A, Shah Allah Ditta Town, Adjacent D12/2, Islamabad, Pakistan',
+    free_shipping_threshold: 2999,
+    shipping_fee: 200,
   });
   const [savingGeneral, setSavingGeneral] = useState(false);
 
@@ -150,7 +154,16 @@ export default function AdminSettingsPage() {
   const fetchGeneralSettings = async () => {
     const { data } = await supabase.from('store_settings').select('*').eq('key', 'general').single();
     if (data?.value) {
-      setSettings(data.value);
+      setSettings({
+        store_name: data.value.store_name || "Imani's",
+        phone: data.value.phone || '0312 1222333',
+        whatsapp: data.value.whatsapp || '0312 1222333',
+        email: data.value.email || 'imanisbyanila@gmail.com',
+        announcement_text: data.value.announcement_text || '⚡ FREE SHIPPING ON RS. 2999+ ORDERS ACROSS PAKISTAN | 7-DAY RETURN POLICY',
+        address: data.value.address || 'Shop 1&2 Meharma Market, Street 1A, Shah Allah Ditta Town, Adjacent D12/2, Islamabad, Pakistan',
+        free_shipping_threshold: Number(data.value.free_shipping_threshold) || 2999,
+        shipping_fee: Number(data.value.shipping_fee ?? 200),
+      });
     }
   };
 
@@ -193,13 +206,19 @@ export default function AdminSettingsPage() {
   const handleSaveGeneral = async (e: React.FormEvent) => {
     e.preventDefault();
     setSavingGeneral(true);
-    const { error } = await supabase.from('store_settings').upsert({ key: 'general', value: settings }, { onConflict: 'key' });
+    const sanitizedPayload = {
+      ...settings,
+      free_shipping_threshold: Number(settings.free_shipping_threshold) || 2999,
+      shipping_fee: Number(settings.shipping_fee ?? 200),
+    };
+    const { error } = await supabase.from('store_settings').upsert({ key: 'general', value: sanitizedPayload }, { onConflict: 'key' });
     setSavingGeneral(false);
 
     if (error) {
       showToast(`Failed to update store settings: ${error.message}`, 'error');
     } else {
-      showToast('Store contact details and announcement bar text saved!');
+      triggerRevalidate(['/', '/shop', '/cart', '/checkout']);
+      showToast('Store settings, COD fee & Free Shipping thresholds saved live!');
     }
   };
 
@@ -567,6 +586,56 @@ export default function AdminSettingsPage() {
               onChange={(e) => setSettings({ ...settings, address: e.target.value })}
               className="w-full p-3.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#a63b7e] font-semibold"
             />
+          </div>
+
+          {/* Shipping & COD Settings Section */}
+          <div className="pt-4 border-t border-gray-100 space-y-3">
+            <div>
+              <h3 className="font-extrabold text-gray-900 text-sm font-serif flex items-center gap-2">
+                <Truck className="w-4 h-4 text-[#a63b7e]" /> Shipping & Cash on Delivery (COD) Rates
+              </h3>
+              <p className="text-[11px] text-gray-500 mt-0.5">
+                Controls the Free Shipping progress bar in the shopping bag and estimated delivery charges at checkout.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="font-extrabold text-gray-700 block mb-1">
+                  Free Shipping Minimum Order (PKR) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  required
+                  min="0"
+                  value={settings.free_shipping_threshold}
+                  onChange={(e) => setSettings({ ...settings, free_shipping_threshold: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#a63b7e] font-semibold"
+                  placeholder="2999"
+                />
+                <p className="text-[10px] text-gray-400 mt-1">
+                  Orders equal to or above this amount automatically receive <strong>FREE SHIPPING</strong>.
+                </p>
+              </div>
+
+              <div>
+                <label className="font-extrabold text-gray-700 block mb-1">
+                  Standard COD & Delivery Fee (PKR) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  required
+                  min="0"
+                  value={settings.shipping_fee}
+                  onChange={(e) => setSettings({ ...settings, shipping_fee: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#a63b7e] font-semibold"
+                  placeholder="200"
+                />
+                <p className="text-[10px] text-gray-400 mt-1">
+                  Estimated shipping fee applied when order subtotal is below the free shipping threshold.
+                </p>
+              </div>
+            </div>
           </div>
 
           <button

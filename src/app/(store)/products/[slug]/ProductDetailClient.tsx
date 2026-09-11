@@ -256,7 +256,7 @@ export const ProductDetailClient: React.FC<ProductDetailClientProps> = ({ produc
                     <span key={i}>★</span>
                   ))}
                 </div>
-                <span className="font-bold text-gray-700 text-[11px] sm:text-xs">5.0 (46 Customer Reviews)</span>
+                <span className="font-bold text-gray-700 text-[11px] sm:text-xs">4.8 (46 Customer Reviews)</span>
               </div>
             </div>
 

@@ -50,7 +50,17 @@ const MAJOR_CITIES: Record<string, string[]> = {
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { items, getSubtotal, discountAmount, couponCode, applyCoupon, removeCoupon, clearCart } = useCartStore();
+  const {
+    items,
+    getSubtotal,
+    discountAmount,
+    couponCode,
+    applyCoupon,
+    removeCoupon,
+    clearCart,
+    shippingConfig,
+    loadShippingConfig,
+  } = useCartStore();
 
   const [form, setForm] = useState({
     fullName: '',
@@ -82,10 +92,13 @@ export default function CheckoutPage() {
   const [publicCoupons, setPublicCoupons] = useState<CouponItem[]>([]);
 
   const subtotal = getSubtotal();
-  const shippingFee = subtotal >= 2999 ? 0 : 200;
+  const freeShippingThreshold = shippingConfig?.free_shipping_threshold || 2999;
+  const standardShippingFee = shippingConfig?.shipping_fee ?? 200;
+  const shippingFee = subtotal >= freeShippingThreshold ? 0 : standardShippingFee;
   const grandTotal = subtotal - discountAmount + shippingFee;
 
   useEffect(() => {
+    loadShippingConfig();
     fetchPublicCoupons().then(setPublicCoupons);
 
     // Fetch Active Payment Methods from Supabase

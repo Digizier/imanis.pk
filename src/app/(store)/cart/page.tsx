@@ -19,6 +19,8 @@ export default function FullCartPage() {
     couponCode,
     applyCoupon,
     removeCoupon,
+    shippingConfig,
+    loadShippingConfig,
   } = useCartStore();
 
   const [inputCoupon, setInputCoupon] = useState('');
@@ -28,13 +30,15 @@ export default function FullCartPage() {
   const [publicCoupons, setPublicCoupons] = useState<CouponItem[]>([]);
 
   const subtotal = getSubtotal();
-  const freeShippingThreshold = 2999;
-  const shippingFee = subtotal >= freeShippingThreshold ? 0 : 200;
+  const freeShippingThreshold = shippingConfig?.free_shipping_threshold || 2999;
+  const standardShippingFee = shippingConfig?.shipping_fee ?? 200;
+  const shippingFee = subtotal >= freeShippingThreshold ? 0 : standardShippingFee;
   const grandTotal = getTotal() + shippingFee;
 
   useEffect(() => {
+    loadShippingConfig();
     fetchPublicCoupons().then(setPublicCoupons);
-  }, []);
+  }, [loadShippingConfig]);
 
   const handleApplyCoupon = async (e: React.FormEvent, codeToApply?: string) => {
     if (e) e.preventDefault();

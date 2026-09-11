@@ -21,6 +21,8 @@ export const CartDrawer: React.FC = () => {
     couponCode,
     applyCoupon,
     removeCoupon,
+    shippingConfig,
+    loadShippingConfig,
   } = useCartStore();
 
   const [inputCoupon, setInputCoupon] = useState('');
@@ -30,16 +32,20 @@ export const CartDrawer: React.FC = () => {
   const [publicCoupons, setPublicCoupons] = useState<CouponItem[]>([]);
 
   const subtotal = getSubtotal();
-  const freeShippingThreshold = 2999;
+  const freeShippingThreshold = shippingConfig?.free_shipping_threshold || 2999;
+  const standardShippingFee = shippingConfig?.shipping_fee ?? 200;
+  const isFreeShipping = subtotal >= freeShippingThreshold;
+  const currentShippingFee = isFreeShipping ? 0 : standardShippingFee;
   const progressPercent = Math.min(100, Math.round((subtotal / freeShippingThreshold) * 100));
   const amountLeftForFreeShipping = Math.max(0, freeShippingThreshold - subtotal);
 
-  // Fetch Public Coupons when Cart Drawer opens
+  // Fetch Public Coupons & Dynamic Shipping Settings when Cart Drawer opens
   useEffect(() => {
     if (isOpen) {
+      loadShippingConfig();
       fetchPublicCoupons().then(setPublicCoupons);
     }
-  }, [isOpen]);
+  }, [isOpen, loadShippingConfig]);
 
   const handleApplyCoupon = async (e: React.FormEvent, codeToApply?: string) => {
     if (e) e.preventDefault();
@@ -291,13 +297,13 @@ export const CartDrawer: React.FC = () => {
                 <div className="flex justify-between text-gray-600">
                   <span>Estimated Shipping:</span>
                   <span className="font-bold text-gray-900">
-                    {subtotal >= freeShippingThreshold ? 'FREE' : 'Rs. 200'}
+                    {isFreeShipping ? 'FREE' : `Rs. ${standardShippingFee.toLocaleString()}`}
                   </span>
                 </div>
                 <div className="flex justify-between text-base font-extrabold text-gray-900 pt-2 border-t border-gray-100">
                   <span>Grand Total:</span>
                   <span className="text-[#a63b7e]">
-                    Rs. {(getTotal() + (subtotal >= freeShippingThreshold ? 0 : 200)).toLocaleString()}
+                    Rs. {(getTotal() + currentShippingFee).toLocaleString()}
                   </span>
                 </div>
               </div>

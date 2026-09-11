@@ -106,7 +106,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                 <Star key={i} className="w-3 h-3 fill-current" />
               ))}
             </div>
-            <span className="text-[10px] font-bold text-gray-500 ml-1">5.0 (46)</span>
+            <span className="text-[10px] font-bold text-gray-500 ml-1">4.8 (46)</span>
           </div>
         </div>
 

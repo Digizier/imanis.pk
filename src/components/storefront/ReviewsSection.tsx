@@ -16,7 +16,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({ reviews }) => {
           Customer Trust
         </span>
         <h2 className="text-2xl md:text-4xl font-extrabold text-gray-900 font-serif tracking-tight">
-          Loved By 350K+ Buyers Across Pakistan
+          2000+ Satisfied Customer Across Pakistan
         </h2>
         <div className="flex items-center justify-center gap-2 mt-2 text-amber-500">
           <div className="flex">
@@ -24,7 +24,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({ reviews }) => {
               <Star key={i} className="w-5 h-5 fill-current" />
             ))}
           </div>
-          <span className="text-sm font-bold text-gray-800">4.9 / 5.0 Rating</span>
+          <span className="text-sm font-bold text-gray-800">4.8 / 5.0 Rating</span>
         </div>
 
         {/* Reviews Cards Grid */}

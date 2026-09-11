@@ -1,12 +1,21 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Product, ProductVariant, CartItem } from '@/types';
+import { supabase } from '@/lib/supabase/client';
+
+export interface ShippingConfig {
+  free_shipping_threshold: number;
+  shipping_fee: number;
+}
 
 interface CartStore {
   items: CartItem[];
   isOpen: boolean;
   couponCode: string | null;
   discountAmount: number;
+  shippingConfig: ShippingConfig;
+  setShippingConfig: (config: ShippingConfig) => void;
+  loadShippingConfig: () => Promise<ShippingConfig>;
   openCart: () => void;
   closeCart: () => void;
   toggleCart: () => void;
@@ -29,6 +38,34 @@ export const useCartStore = create<CartStore>()(
       isOpen: false,
       couponCode: null,
       discountAmount: 0,
+      shippingConfig: {
+        free_shipping_threshold: 2999,
+        shipping_fee: 200,
+      },
+
+      setShippingConfig: (config) => set({ shippingConfig: config }),
+
+      loadShippingConfig: async () => {
+        try {
+          const { data } = await supabase
+            .from('store_settings')
+            .select('value')
+            .eq('key', 'general')
+            .single();
+
+          if (data?.value) {
+            const config: ShippingConfig = {
+              free_shipping_threshold: Number(data.value.free_shipping_threshold) || 2999,
+              shipping_fee: Number(data.value.shipping_fee ?? 200),
+            };
+            set({ shippingConfig: config });
+            return config;
+          }
+        } catch (err) {
+          console.warn('Could not load dynamic shipping settings:', err);
+        }
+        return get().shippingConfig;
+      },
 
       openCart: () => set({ isOpen: true }),
       closeCart: () => set({ isOpen: false }),

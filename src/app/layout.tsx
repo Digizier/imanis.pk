@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import MetaPixel from "@/components/analytics/MetaPixel";
+import ScrollToTop from "@/components/layout/ScrollToTop";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -199,6 +200,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="min-h-full flex flex-col">
         <Suspense fallback={null}>
+          <ScrollToTop />
           <MetaPixel />
         </Suspense>
         {children}
