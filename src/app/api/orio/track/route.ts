@@ -30,6 +30,27 @@ export async function POST(req: NextRequest) {
 
     const trackResult = await trackOrderWithOrio(targetOrioId);
 
+    // Sync updated courier details back to database when available
+    if (trackResult.success && trackResult.data) {
+      try {
+        const cn = trackResult.data.consignment_no;
+        const courierName = trackResult.data.courier_name;
+        const updates: any = {};
+        if (cn) updates.orio_consignment_no = cn;
+        if (courierName) updates.courier = courierName;
+
+        if (Object.keys(updates).length > 0) {
+          if (orderId) {
+            await supabase.from('orders').update(updates).eq('id', orderId);
+          } else if (targetOrioId) {
+            await supabase.from('orders').update(updates).eq('orio_order_id', String(targetOrioId));
+          }
+        }
+      } catch (syncErr) {
+        console.warn('Non-fatal: failed to sync courier details to supabase:', syncErr);
+      }
+    }
+
     return NextResponse.json(trackResult);
   } catch (error: any) {
     console.error('Error in /api/orio/track:', error);

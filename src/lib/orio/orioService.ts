@@ -235,6 +235,14 @@ export async function trackOrderWithOrio(orderId: number | string): Promise<{ su
   const acno = process.env.ORIO_ACCOUNT_NUMBER || 'OR-05878';
 
   try {
+    const cleanId = Number(String(orderId).replace(/[^0-9]/g, ''));
+    if (!cleanId || isNaN(cleanId)) {
+      return {
+        success: false,
+        message: 'Invalid ORIO Order ID format',
+      };
+    }
+
     const response = await fetch(`${apiUrl}/api/track`, {
       method: 'POST',
       headers: {
@@ -243,16 +251,29 @@ export async function trackOrderWithOrio(orderId: number | string): Promise<{ su
       },
       body: JSON.stringify({
         acno,
-        order_id: Number(orderId),
+        order_id: cleanId,
       }),
     });
 
     const result = await response.json();
 
     if (result.status === 1 || result.status === '1') {
+      const raw = Array.isArray(result.payload) ? result.payload[0] : result.payload;
+      const consignmentNo = raw?.consigment_no || raw?.consignment_no || null;
+
       return {
         success: true,
-        data: result.payload?.[0] || result.payload,
+        data: {
+          ...raw,
+          order_id: raw?.order_id || String(cleanId),
+          status: raw?.status || 'Booked',
+          courier_name: raw?.courier_name || null,
+          consignment_no: consignmentNo,
+          origin: raw?.origin || null,
+          destination: raw?.destination || null,
+          last_status_date: raw?.order_last_status_date || raw?.order_date || null,
+          history: Array.isArray(raw?.detail) ? raw.detail : [],
+        },
       };
     } else {
       return {
@@ -268,3 +289,4 @@ export async function trackOrderWithOrio(orderId: number | string): Promise<{ su
     };
   }
 }
+
