@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { ShoppingBag, Heart, ShieldCheck, Truck, RotateCcw, Ruler, CheckCircle2, MessageCircle, ChevronRight, X } from 'lucide-react';
+import { ShoppingBag, Heart, ShieldCheck, Truck, RotateCcw, Ruler, CheckCircle2, MessageCircle, ChevronRight, ChevronLeft, X } from 'lucide-react';
 import { Product } from '@/types';
 import { useCartStore } from '@/lib/store/cart';
 import { useWishlistStore } from '@/lib/store/wishlist';
@@ -27,6 +27,109 @@ export const ProductDetailClient: React.FC<ProductDetailClientProps> = ({ produc
     : [product.main_image];
 
   const [activeImage, setActiveImage] = useState<string>(gallery[0] || product.main_image);
+
+  // Carousel Indices for Next/Prev peek and navigation
+  const currentIdx = Math.max(0, gallery.indexOf(activeImage));
+  const nextIdx = (currentIdx + 1) % gallery.length;
+  const prevIdx = (currentIdx - 1 + gallery.length) % gallery.length;
+  const nextImage = gallery[nextIdx];
+
+  // Subtle Peek Animation State (Triggers after 3s of inactivity, cancels on any touch/click/scroll)
+  const [isPeeking, setIsPeeking] = useState<boolean>(false);
+  const isPeekingRef = React.useRef<boolean>(false);
+  isPeekingRef.current = isPeeking;
+
+  const peekTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+  const peekResetTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+  const touchStartXRef = React.useRef<number | null>(null);
+
+  // Immediately cancel or stop the peek animation
+  const cancelPeek = React.useCallback(() => {
+    if (isPeekingRef.current) {
+      setIsPeeking(false);
+    }
+    if (peekResetTimerRef.current) {
+      clearTimeout(peekResetTimerRef.current);
+      peekResetTimerRef.current = null;
+    }
+  }, []);
+
+  // Reset and restart the 3s inactivity peek timer
+  const resetInactivityTimer = React.useCallback(() => {
+    cancelPeek();
+
+    if (peekTimerRef.current) {
+      clearTimeout(peekTimerRef.current);
+      peekTimerRef.current = null;
+    }
+
+    // Only set timer if there are multiple images to peek
+    if (gallery.length <= 1) return;
+
+    // After 3 seconds of continuous user inactivity, gently nudge the main image
+    peekTimerRef.current = setTimeout(() => {
+      setIsPeeking(true);
+
+      // Return smoothly back to center after 750ms without switching photos
+      peekResetTimerRef.current = setTimeout(() => {
+        setIsPeeking(false);
+        peekResetTimerRef.current = null;
+        // Re-arm after a gentle pause if user remains completely inactive
+        peekTimerRef.current = setTimeout(() => {
+          resetInactivityTimer();
+        }, 4000);
+      }, 750);
+    }, 3000);
+  }, [gallery.length, cancelPeek]);
+
+  // Listen for user interactions (touch, click, scroll, wheel, keydown) to immediately cancel animation
+  useEffect(() => {
+    if (gallery.length <= 1) return;
+
+    resetInactivityTimer();
+
+    const handleUserInteraction = () => {
+      resetInactivityTimer();
+    };
+
+    const eventOptions = { passive: true };
+    const events = ['touchstart', 'touchmove', 'mousedown', 'click', 'scroll', 'wheel', 'keydown'];
+
+    events.forEach((evt) => {
+      window.addEventListener(evt, handleUserInteraction, eventOptions);
+    });
+
+    return () => {
+      if (peekTimerRef.current) clearTimeout(peekTimerRef.current);
+      if (peekResetTimerRef.current) clearTimeout(peekResetTimerRef.current);
+      events.forEach((evt) => {
+        window.removeEventListener(evt, handleUserInteraction);
+      });
+    };
+  }, [gallery.length, activeImage, resetInactivityTimer]);
+
+  // Touch handlers for mobile swipe navigation with immediate peek cancellation
+  const handleTouchStart = (e: React.TouchEvent) => {
+    cancelPeek();
+    touchStartXRef.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    cancelPeek();
+    if (touchStartXRef.current === null) return;
+    const touchEndX = e.changedTouches[0].clientX;
+    const diff = touchStartXRef.current - touchEndX;
+    if (Math.abs(diff) > 40 && gallery.length > 1) {
+      if (diff > 0) {
+        // Swipe left -> Next Image
+        setActiveImage(nextImage);
+      } else {
+        // Swipe right -> Previous Image
+        setActiveImage(gallery[prevIdx]);
+      }
+    }
+    touchStartXRef.current = null;
+  };
 
   // Extract unique active sizes & colors from variants
   const activeVariants = product.variants && product.variants.length > 0
@@ -205,20 +308,95 @@ export const ProductDetailClient: React.FC<ProductDetailClientProps> = ({ produc
 
           {/* Left Column: Gallery & Images */}
           <div className="lg:col-span-7 flex flex-col md:flex-row-reverse gap-3 md:gap-4">
-            {/* Main Featured Image */}
-            <div className="relative aspect-[4/5] sm:aspect-square w-full bg-white rounded-2xl md:rounded-3xl overflow-hidden border border-gray-100 shadow-xs">
-              <Image
-                src={activeImage}
-                alt={product.name}
-                fill
-                priority
-                sizes="(max-width: 1024px) 100vw, 50vw"
-                className="object-cover object-top transition-all duration-300"
-              />
+            {/* Main Featured Image with Subtle Peek Animation */}
+            <div 
+              onTouchStart={handleTouchStart}
+              onTouchEnd={handleTouchEnd}
+              className="relative aspect-[4/5] sm:aspect-square w-full bg-white rounded-2xl md:rounded-3xl overflow-hidden border border-gray-100 shadow-xs select-none group"
+            >
+              {/* Sliding / Peeking Track */}
+              <div
+                className="relative w-full h-full flex will-change-transform"
+                style={{
+                  transform: isPeeking ? 'translateX(-22%)' : 'translateX(0%)',
+                  transition: isPeeking
+                    ? 'transform 650ms cubic-bezier(0.25, 1, 0.5, 1)'
+                    : 'transform 350ms cubic-bezier(0.16, 1, 0.3, 1)',
+                }}
+              >
+                {/* Active Main Image */}
+                <div className="relative w-full h-full shrink-0">
+                  <Image
+                    src={activeImage}
+                    alt={product.name}
+                    fill
+                    priority
+                    sizes="(max-width: 1024px) 100vw, 50vw"
+                    className="object-cover object-top"
+                  />
+                </div>
+
+                {/* Next Photo Peek (Glimpse of next photo when nudged to the left) */}
+                {gallery.length > 1 && (
+                  <div
+                    className="relative w-full h-full shrink-0 pl-3"
+                    aria-hidden="true"
+                  >
+                    <div className="relative w-full h-full rounded-2xl overflow-hidden border border-gray-100 shadow-xs">
+                      <Image
+                        src={nextImage}
+                        alt="Next photo peek"
+                        fill
+                        sizes="(max-width: 1024px) 100vw, 50vw"
+                        className="object-cover object-top opacity-90"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Discount Percentage Badge */}
               {discountPercent > 0 && (
-                <div className="absolute top-3 left-3 sm:top-4 sm:left-4 bg-red-600 text-white font-black text-[10px] sm:text-xs px-2.5 py-1 rounded-lg uppercase tracking-wider shadow-md">
+                <div className="absolute top-3 left-3 sm:top-4 sm:left-4 bg-red-600 text-white font-black text-[10px] sm:text-xs px-2.5 py-1 rounded-lg uppercase tracking-wider shadow-md z-10 pointer-events-none">
                   SAVE {discountPercent}%
                 </div>
+              )}
+
+              {/* Photo Count Indicator Badge */}
+              {gallery.length > 1 && (
+                <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-xs text-white text-[10px] font-bold px-2 py-0.5 rounded-full z-10 pointer-events-none">
+                  {currentIdx + 1} / {gallery.length}
+                </div>
+              )}
+
+              {/* Desktop Hover Navigation Chevrons */}
+              {gallery.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      cancelPeek();
+                      setActiveImage(gallery[prevIdx]);
+                    }}
+                    aria-label="Previous image"
+                    className="hidden md:flex absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/80 hover:bg-white text-gray-800 shadow-md backdrop-blur-xs items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      cancelPeek();
+                      setActiveImage(nextImage);
+                    }}
+                    aria-label="Next image"
+                    className="hidden md:flex absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/80 hover:bg-white text-gray-800 shadow-md backdrop-blur-xs items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </>
               )}
             </div>
 
@@ -228,7 +406,10 @@ export const ProductDetailClient: React.FC<ProductDetailClientProps> = ({ produc
                 {gallery.map((img, idx) => (
                   <button
                     key={idx}
-                    onClick={() => setActiveImage(img)}
+                    onClick={() => {
+                      cancelPeek();
+                      setActiveImage(img);
+                    }}
                     className={`relative w-14 h-18 sm:w-20 sm:h-24 rounded-xl overflow-hidden border-2 shrink-0 transition-all ${
                       activeImage === img ? 'border-[#a63b7e] ring-2 ring-pink-200 scale-105' : 'border-gray-200 opacity-75 hover:opacity-100'
                     }`}
